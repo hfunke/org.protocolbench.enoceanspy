@@ -7,7 +7,6 @@ import gnu.io.SerialPortEventListener;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -16,9 +15,11 @@ public class EnOceanSpy {
 	
 	static SerialPort serialPort;
 	
+	// default serial port name:
 	static String serialPortName = "COM3";
 		
 
+	// Establish connection to EnOcean USB300 stick:
 	void connect(String portName) throws Exception {
 		CommPortIdentifier portIdentifier = CommPortIdentifier
 				.getPortIdentifier(portName);
@@ -46,6 +47,7 @@ public class EnOceanSpy {
 		}
 	}
 
+	// Read EnOcean telegram from serial port
 	public static class SerialReader implements SerialPortEventListener {
 		private InputStream in;
 		private byte[] buffer = new byte[1024];
@@ -80,7 +82,7 @@ public class EnOceanSpy {
 	}
 
 
-	
+	// Generate time in usable format to interpret this information later
 	private static String getFormatedDate(){
 		SimpleDateFormat formatter = new SimpleDateFormat(
 				"HH:mm:ss,SSS ");
@@ -89,7 +91,7 @@ public class EnOceanSpy {
 	}
 	
 	
-
+	// Concert byte array to an hexadecimal String
 	private static String byteArrayToHex(byte[] a) {
 
 		StringBuilder sb = new StringBuilder();
@@ -107,12 +109,19 @@ public class EnOceanSpy {
 
 		System.out.println(getFormatedDate()+"Starting EnOcean Listener...\n");
 		
+		if (args.length >=2 || args.length == 0) {
+			System.out.println("Usage: EnOceanSpy <comport>");
+			System.out.println("Example: EnOceanSpy COM3");
+			System.exit(1);
+		} else {
+			serialPortName = args[0];
+		}
 		
 		try {
 			(new EnOceanSpy()).connect(serialPortName);
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			System.err.println("Cannot establish connection to USB300 on serial port "+serialPortName);
+			//e.printStackTrace();
 		}
 	}
 }
