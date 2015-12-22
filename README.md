@@ -6,5 +6,7 @@ Requirements:
 * EnOcean USB300 stick 
 
 Start tool with
+
 EnOcean <comport> 
+
 to log all incoming telegrams at console.
