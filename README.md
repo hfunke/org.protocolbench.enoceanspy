@@ -7,6 +7,6 @@ Requirements:
 
 Start tool with
 
-EnOcean <comport> 
+EnOcean {comport} 
 
 to log all incoming telegrams at console.
