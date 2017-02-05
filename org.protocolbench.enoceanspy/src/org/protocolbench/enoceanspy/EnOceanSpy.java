@@ -1,127 +1,96 @@
 package org.protocolbench.enoceanspy;
-import gnu.io.CommPort;
-import gnu.io.CommPortIdentifier;
-import gnu.io.SerialPort;
-import gnu.io.SerialPortEvent;
-import gnu.io.SerialPortEventListener;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.*;
+
+import jssc.SerialPort;
+import jssc.SerialPortEvent;
+import jssc.SerialPortEventListener;
+import jssc.SerialPortException;
+import jssc.SerialPortList; 
 
 
 public class EnOceanSpy {
-	
-	static SerialPort serialPort;
-	
+
+    private static SerialPort serialPort;
+
 	// default serial port name:
 	static String serialPortName = "COM3";
-		
-
-	// Establish connection to EnOcean USB300 stick:
-	void connect(String portName) throws Exception {
-		CommPortIdentifier portIdentifier = CommPortIdentifier
-				.getPortIdentifier(portName);
-		if (portIdentifier.isCurrentlyOwned()) {
-			System.err.println("Port is currently in use!");
-		} else {
-			CommPort commPort = portIdentifier.open(this.getClass().getName(),
-					3000);
-
-			if (commPort instanceof SerialPort) {
-				serialPort = (SerialPort) commPort;
-
-				// settings for EnOcean:
-				serialPort.setSerialPortParams(57600, SerialPort.DATABITS_8,
-						SerialPort.STOPBITS_1, SerialPort.PARITY_NONE);
-
-				InputStream in = serialPort.getInputStream();
-			
-				serialPort.addEventListener(new SerialReader(in));
-				serialPort.notifyOnDataAvailable(true);
-				
-			} else {
-				System.err.println("Only serial ports are handled!");
-			}
-		}
-	}
-
-	// Read EnOcean telegram from serial port
-	public static class SerialReader implements SerialPortEventListener {
-		private InputStream in;
-		private byte[] buffer = new byte[1024];
-
-		public SerialReader(InputStream in) {
-			this.in = in;
-		}
-
-		public void serialEvent(SerialPortEvent arg0) {
-
-			java.awt.Toolkit.getDefaultToolkit().beep();
-			int data;
-			try {
-				int len = 0;
-				while ((data = in.read()) > -1) {
-					buffer[len++] = (byte) data;
-				}
-				if (len > 3) {
-					byte[] incomingTelegram = new byte[len];
-					System.arraycopy(buffer, 0, incomingTelegram, 0, len);
-					
-					System.out.print("\n"+ getFormatedDate() + "  > "
-							+ byteArrayToHex(incomingTelegram) + "\n");
-				
-				}
-
-			} catch (IOException e) {
-				e.printStackTrace();
-				System.exit(-1);
-			}
-		}
-	}
-
-
-	// Generate time in usable format to interpret this information later
-	private static String getFormatedDate(){
-		SimpleDateFormat formatter = new SimpleDateFormat(
-				"HH:mm:ss,SSS ");
-		Date currentTime = new Date();
-		return formatter.format(currentTime);
-	}
 	
-	
-	// Concert byte array to an hexadecimal String
-	private static String byteArrayToHex(byte[] a) {
-
-		StringBuilder sb = new StringBuilder();
-		for (byte b : a) {
-			sb.append(String.format("%02x", b & 0xff));
-			sb.append(" ");
-		}
-
-		return sb.toString().toUpperCase();
-	}
-	
-	
-
-	public static void main(String[] args) {
-
-		System.out.println(getFormatedDate()+"Starting EnOcean Listener...\n");
-		
-		if (args.length >=2 || args.length == 0) {
+    /**
+     * @param args the command line arguments
+     */
+    public static void main(String[] args) {
+    	System.out.println(getFormatedDate()+"Starting EnOcean Listener...\n");
+   
+    	// check command line argument
+    	if (args.length >=2 || args.length == 0) {
 			System.out.println("Usage: EnOceanSpy <comport>");
 			System.out.println("Example: EnOceanSpy COM3");
 			System.exit(1);
 		} else {
 			serialPortName = args[0];
 		}
-		
-		try {
-			(new EnOceanSpy()).connect(serialPortName);
-		} catch (Exception e) {
-			System.err.println("Cannot establish connection to USB300 on serial port "+serialPortName);
-			//e.printStackTrace();
-		}
+    	
+    	String[] portNames = SerialPortList.getPortNames();
+        
+        if (portNames.length == 0) {
+            System.out.println("There are no active serial ports available!");
+            System.exit(1);
+        }
+        
+		System.out.println("List of available ports: ");
+        for (int i = 0; i < portNames.length; i++){
+            System.out.println(portNames[i]);
+        }
+        
+        
+        serialPort = new SerialPort(serialPortName);
+        
+        try {
+            // opening port
+            serialPort.openPort();
+            
+            serialPort.setParams(SerialPort.BAUDRATE_57600,
+                                 SerialPort.DATABITS_8,
+                                 SerialPort.STOPBITS_1,
+                                 SerialPort.PARITY_NONE);
+            
+            serialPort.setFlowControlMode(SerialPort.FLOWCONTROL_RTSCTS_IN | 
+                                          SerialPort.FLOWCONTROL_RTSCTS_OUT);
+            
+            serialPort.addEventListener(new PortReader(), SerialPort.MASK_RXCHAR);
+                       
+            System.out.println("Port " + serialPortName + " opened successfully, waiting for EnOcean telegrams...");
+        }
+        catch (SerialPortException ex) {
+            System.out.println("Error while opening port: " + ex);
+        }
+    }
+    
+    // receiving telegram from COM port
+    private static class PortReader implements SerialPortEventListener {
+
+        @Override
+        public void serialEvent(SerialPortEvent event) {
+            if(event.isRXCHAR() && event.getEventValue() > 0) {
+                try {
+                    //
+                    String receivedData = serialPort.readHexString(event.getEventValue());
+                    System.out.println(getFormatedDate()+ " > " + receivedData);
+                }
+                catch (SerialPortException ex) {
+                    System.out.println("Error while receiving telegram: " + ex);
+                }
+            }
+        }
+    }
+	
+    // Generate time in usable format to interpret this information later
+	private static String getFormatedDate(){
+		SimpleDateFormat formatter = new SimpleDateFormat(
+				"HH:mm:ss,SSS ");
+		Date currentTime = new Date();
+		return formatter.format(currentTime);
 	}
 }
